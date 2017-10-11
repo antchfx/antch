@@ -31,7 +31,7 @@ func defaultCheckRedirect(req *http.Request, via []*http.Request) error {
 	return nil
 }
 
-func (r Redirect) checkRedirect(req *http.Request, via []*http.Request) error {
+func (r *Redirect) checkRedirect(req *http.Request, via []*http.Request) error {
 	fn := r.CheckRedirect
 	if fn == nil {
 		fn = defaultCheckRedirect
@@ -39,7 +39,7 @@ func (r Redirect) checkRedirect(req *http.Request, via []*http.Request) error {
 	return fn(req, via)
 }
 
-func (rd Redirect) ProcessRequest(ctx context.Context, req *http.Request) (*http.Response, error) {
+func (rd *Redirect) ProcessRequest(ctx context.Context, req *http.Request) (*http.Response, error) {
 	var (
 		reqs        []*http.Request
 		resp        *http.Response

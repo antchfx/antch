@@ -30,7 +30,7 @@ func TestCookieMiddleware(t *testing.T) {
 	})
 
 	u, _ := url.Parse(ts.URL)
-	mid := Cookie{Jar: defaultCookieJar, Next: fn}
+	mid := &Cookie{Jar: defaultCookieJar, Next: fn}
 	mid.Jar.SetCookies(u, expectedCookies)
 
 	req, _ := http.NewRequest("GET", ts.URL, nil)

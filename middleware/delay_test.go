@@ -23,7 +23,7 @@ func TestDelayMiddleware(t *testing.T) {
 
 	req, _ := http.NewRequest("GET", ts.URL, nil)
 
-	mid := DownloadDelay{DelayTime: 100 * time.Millisecond, Next: fn}
+	mid := &DownloadDelay{DelayTime: 100 * time.Millisecond, Next: fn}
 	_, err := mid.ProcessRequest(context.Background(), req)
 	if err != nil {
 		t.Fatal(err)

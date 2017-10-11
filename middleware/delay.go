@@ -23,7 +23,7 @@ type DownloadDelayKey struct{}
 
 const DefaultDelayTime = 200 * time.Millisecond
 
-func (d DownloadDelay) ProcessRequest(ctx context.Context, req *http.Request) (*http.Response, error) {
+func (d *DownloadDelay) ProcessRequest(ctx context.Context, req *http.Request) (*http.Response, error) {
 	dt := d.DelayTime
 	// If request context have a crawl-delay value,
 	// then this delay is used instead.

@@ -16,7 +16,7 @@ type HttpCompression struct {
 	Next antch.Downloader
 }
 
-func (c HttpCompression) ProcessRequest(ctx context.Context, req *http.Request) (resp *http.Response, err error) {
+func (c *HttpCompression) ProcessRequest(ctx context.Context, req *http.Request) (resp *http.Response, err error) {
 	req.Header.Set("Accept-Encoding", "gzip, deflate")
 
 	resp, err = c.Next.ProcessRequest(ctx, req)

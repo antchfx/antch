@@ -26,7 +26,7 @@ func TestRedirectMiddleware(t *testing.T) {
 
 	req, _ := http.NewRequest("GET", ts.URL, nil)
 
-	mid := Redirect{Next: fn}
+	mid := &Redirect{Next: fn}
 	_, err := mid.ProcessRequest(context.Background(), req)
 	if e, g := "Get /: stopped after 10 redirects", fmt.Sprintf("%v", err); e != g {
 		t.Errorf("expected error %q, got %q", e, g)

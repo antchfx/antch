@@ -13,24 +13,24 @@ var DefaultDownloaderMiddlewares = []antch.DownloaderMiddleware{
 
 func redirectMiddleware() antch.DownloaderMiddleware {
 	return func(next antch.Downloader) antch.Downloader {
-		return Redirect{Next: next}
+		return &Redirect{Next: next}
 	}
 }
 
 func cookieMiddleware() antch.DownloaderMiddleware {
 	return func(next antch.Downloader) antch.Downloader {
-		return Cookie{Next: next}
+		return &Cookie{Next: next}
 	}
 }
 
 func httpCompressionMiddleware() antch.DownloaderMiddleware {
 	return func(next antch.Downloader) antch.Downloader {
-		return HttpCompression{Next: next}
+		return &HttpCompression{Next: next}
 	}
 }
 
 func downloadDelayMiddleware() antch.DownloaderMiddleware {
 	return func(next antch.Downloader) antch.Downloader {
-		return DownloadDelay{Next: next}
+		return &DownloadDelay{Next: next}
 	}
 }

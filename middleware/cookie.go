@@ -20,14 +20,14 @@ type Cookie struct {
 	Next antch.Downloader
 }
 
-func (c Cookie) jar() http.CookieJar {
+func (c *Cookie) jar() http.CookieJar {
 	if c.Jar != nil {
 		return c.Jar
 	}
 	return defaultCookieJar
 }
 
-func (c Cookie) ProcessRequest(ctx context.Context, req *http.Request) (resp *http.Response, err error) {
+func (c *Cookie) ProcessRequest(ctx context.Context, req *http.Request) (resp *http.Response, err error) {
 	// Delete previous cookie value before set new cookie value.
 	req.Header.Del("Cookie")
 

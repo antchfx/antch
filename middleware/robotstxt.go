@@ -26,7 +26,7 @@ type Robotstxt struct {
 	mu sync.RWMutex
 }
 
-func (rt Robotstxt) get(u *url.URL) *robotstxt.RobotsData {
+func (rt *Robotstxt) get(u *url.URL) *robotstxt.RobotsData {
 	rt.mu.RLock()
 	value, ok := rt.m[u.Host]
 	rt.mu.RUnlock()
@@ -50,14 +50,14 @@ func (rt Robotstxt) get(u *url.URL) *robotstxt.RobotsData {
 	return entry.data
 }
 
-func (rt Robotstxt) useragent(req *http.Request) string {
+func (rt *Robotstxt) useragent(req *http.Request) string {
 	if v := rt.UserAgent; v != "" {
 		return v
 	}
 	return req.Header.Get("User-Agent")
 }
 
-func (rt Robotstxt) ProcessRequest(ctx context.Context, req *http.Request) (*http.Response, error) {
+func (rt *Robotstxt) ProcessRequest(ctx context.Context, req *http.Request) (*http.Response, error) {
 	robots := rt.get(req.URL)
 	if !robots.TestAgent(req.URL.Path, rt.useragent(req)) {
 		return nil, errors.New("robotstxt: request was denied")

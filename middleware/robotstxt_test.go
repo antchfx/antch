@@ -61,7 +61,7 @@ func TestRobotstxtMiddlewareDisallow(t *testing.T) {
 
 	req, _ := http.NewRequest("GET", ts.URL, nil)
 
-	mid := Robotstxt{Next: fn}
+	mid := &Robotstxt{Next: fn}
 	_, err := mid.ProcessRequest(context.Background(), req)
 	if e, g := "robotstxt: request was denied", fmt.Sprintf("%v", err); e != g {
 		t.Errorf("expected error %q, got %q", e, g)

@@ -39,7 +39,7 @@ type ProxyKey struct{}
 
 var zero net.Dialer
 
-func (p Proxy) dial(ctx context.Context, network, address string) (net.Conn, error) {
+func (p *Proxy) dial(ctx context.Context, network, address string) (net.Conn, error) {
 	if v := ctx.Value(ProxyKey{}); v != nil {
 		dialer, err := proxy.FromURL(v.(*url.URL), proxy.Direct)
 		if err != nil {
@@ -50,7 +50,7 @@ func (p Proxy) dial(ctx context.Context, network, address string) (net.Conn, err
 	return zero.DialContext(ctx, network, address)
 }
 
-func (p Proxy) ProcessRequest(ctx context.Context, req *http.Request) (*http.Response, error) {
+func (p *Proxy) ProcessRequest(ctx context.Context, req *http.Request) (*http.Response, error) {
 	p.once.Do(func() {
 		// Change antch default dialer handler for proxy.
 		antch.DefaultDialer = p.dial

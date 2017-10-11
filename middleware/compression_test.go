@@ -26,7 +26,7 @@ func TestHttpCompressionMiddleware(t *testing.T) {
 	})
 
 	req, _ := http.NewRequest("GET", ts.URL, nil)
-	mid := HttpCompression{Next: fn}
+	mid := &HttpCompression{Next: fn}
 
 	resp, err := mid.ProcessRequest(context.Background(), req)
 	if err != nil {
