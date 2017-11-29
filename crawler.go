@@ -1,127 +1,379 @@
 package antch
 
 import (
-	"context"
 	"errors"
-	"io"
+	"fmt"
+	"net"
 	"net/http"
-	"runtime"
+	"net/url"
+	"strings"
 	"sync"
-	"sync/atomic"
 	"time"
 
 	"github.com/sirupsen/logrus"
-
-	"github.com/antchfx/antch/internal/util"
 )
 
-const DefaultMaxFetchersPerHost = 1
+// Item is represents an item object.
+type Item interface{}
 
-// Crawler is a web crawl server for crawl websites.
+// Crawler is core of web crawl server that provides crawl websites
+// and calls pipeline to process for received data from their pages.
 type Crawler struct {
-	// MaxWorkers specifies the maximum number of worker to working.
-	MaxWorkers int
+	// CheckRedirect specifies the policy for handling redirects.
+	CheckRedirect func(req *http.Request, via []*http.Request) error
 
-	// MaxFetchersPerHost Specifies the number of fetcher
-	// that should be allowed to access same host at one time.
-	// If zero, DefaultMaxFetchersPerHost is used.
-	MaxFetchersPerHost int
+	// MaxConcurrentRequests specifies the maximum number of concurrent
+	// requests that will be performed.
+	MaxConcurrentRequests int
 
-	// DownloadHandler specifies a download handler to fetching HTTP
-	// response from remote server when server received a crawl request.
-	// If No specifies Downloader, then default use http.DefaultClient to
-	// execute HTTP request.
-	DownloadHandler Downloader
+	// MaxConcurrentRequestsPerHost specifies the maximum number of
+	// concurrent requests that will be performed to any single domain.
+	MaxConcurrentRequestsPerSite int
 
-	// MessageHandler specifies a message handler to handling received
-	// HTTP response.
-	// If No specifies Spider, then default use NoOpSpider to reponse all
-	// received HTTP response.
-	MessageHandler Spider
+	// RequestTimeout specifies a time to wait before the request times out.
+	RequestTimeout time.Duration
 
-	isRunning int32
-	poolSize  int
+	// DownloadDelay specifies delay time to wait before access same website.
+	DownloadDelay time.Duration
 
-	fetcherMu sync.RWMutex
-	fetchers  map[string]*fetcher
+	// MaxConcurrentItems specifies the maximum number of concurrent items
+	// to process parallel in the pipeline.
+	MaxConcurrentItems int
 
-	exitCh    chan struct{}
-	waitGroup util.WaitGroupWrapper
+	// UserAgent specifies the user-agent for the remote server.
+	UserAgent string
+
+	// Exit is an optional channel whose closure indicates that the Crawler
+	// instance should be stop work and exit.
+	Exit <-chan struct{}
+
+	readCh  chan *http.Request
+	writeCh chan Item
+
+	client      *http.Client
+	pipeHandler PipelineHandler
+	mids        []Middleware
+	pipes       []Pipeline
+
+	spider   map[string]*spider
+	spiderMu sync.Mutex
+
+	once sync.Once
+	mu   sync.RWMutex
+	m    map[string]muxEntry
 }
 
-// DefaultCrawler is the default Crawler used to crawl website.
-var DefaultCrawler = &Crawler{}
-
-// Stop stops crawling and exit.
-func (c *Crawler) Stop() error {
-	if atomic.LoadInt32(&c.isRunning) == 0 {
-		return errors.New("antch: crawler is not running")
+// NewCrawler returns a new Crawler with default settings.
+func NewCrawler() *Crawler {
+	return &Crawler{
+		UserAgent: "antch(github.com)",
+		Exit:      make(chan struct{}),
 	}
-	close(c.exitCh)
-	c.waitGroup.Wait()
+}
+
+type muxEntry struct {
+	pattern string
+	h       Handler
+}
+
+// StartURLs starts crawling for the given URL list.
+func (c *Crawler) StartURLs(URLs []string) {
+	for _, URL := range URLs {
+		req, _ := http.NewRequest("GET", URL, nil)
+		c.Request(req)
+	}
+}
+
+// Request puts an HTTP request into the working queue to crawling.
+func (c *Crawler) Request(req *http.Request) error {
+	c.once.Do(c.init)
+	if req == nil {
+		return errors.New("req is nil")
+	}
+	return c.enqueue(req, 5*time.Second)
+}
+
+func (c *Crawler) enqueue(req *http.Request, timeout time.Duration) error {
+	select {
+	case c.readCh <- req:
+	case <-time.After(timeout):
+		return errors.New("crawler: timeout, worker is busy")
+	}
 	return nil
 }
 
-// Run starts server to begin crawling with URLs Queue.
-func (c *Crawler) Run(q Queue) {
-	if q == nil {
-		panic("antch: nil queue")
+// Handle registers the Handler for the given pattern.
+// If pattern is "*" means matches all requests.
+func (c *Crawler) Handle(pattern string, handler Handler) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	if pattern == "" {
+		panic("antch: invalid domain")
 	}
-	c.exitCh = make(chan struct{})
-
-	c.waitGroup.Wrap(func() { c.queueScanLoop(q) })
-
-	atomic.StoreInt32(&c.isRunning, 1)
+	if handler == nil {
+		panic("antch: handler is nil")
+	}
+	if c.m == nil {
+		c.m = make(map[string]muxEntry)
+	}
+	c.m[pattern] = muxEntry{pattern: pattern, h: handler}
 }
 
-func (c *Crawler) downloader() Downloader {
-	if c.DownloadHandler != nil {
-		return c.DownloadHandler
-	}
-	return httpClient()
+// Handler returns a Handler for the give URL.
+func (c *Crawler) Handler(u *url.URL) (h Handler, pattern string) {
+	return c.handler(u)
 }
 
-func (c *Crawler) spider() Spider {
-	if c.MessageHandler != nil {
-		return c.MessageHandler
-	}
-	return NoOpSpider()
+// UseMiddleware adds a Middleware to the crawler.
+func (c *Crawler) UseMiddleware(m Middleware) *Crawler {
+	c.mids = append(c.mids, m)
+	return c
 }
 
-func (c *Crawler) queueScanWorker(requestCh chan *http.Request, closeCh chan int) {
-	newFetcher := func() *fetcher {
-		return &fetcher{
-			c:       c,
-			queueCh: make(chan requestAndChan, c.maxFetchersPerHost()),
-			quitCh:  make(chan struct{}),
+// UsePipeline adds a Pipeline to the crawler.
+func (c *Crawler) UsePipeline(p Pipeline) *Crawler {
+	c.pipes = append(c.pipes, p)
+	return c
+}
+
+// UseCookies enables the cookies middleware to working.
+func (c *Crawler) UseCookies() *Crawler {
+	return c.UseMiddleware(CookiesMiddleware())
+}
+
+// UseCompression enables the HTTP compression middleware to
+// supports gzip, deflate for HTTP Request/Response.
+func (c *Crawler) UseCompression() *Crawler {
+	return c.UseMiddleware(CompressionMiddleware())
+}
+
+// UseProxy enables proxy for each of HTTP requests.
+func (c *Crawler) UseProxy(proxyURL *url.URL) *Crawler {
+	return c.UseMiddleware(ProxyMiddleware(http.ProxyURL(proxyURL)))
+}
+
+// UseRobotstxt enables support robots.txt.
+func (c *Crawler) UseRobotstxt() *Crawler {
+	return c.UseMiddleware(RobotstxtMiddleware())
+}
+
+func (c *Crawler) transport() http.RoundTripper {
+	ts := &http.Transport{
+		MaxIdleConns:          1000,
+		MaxIdleConnsPerHost:   c.maxConcurrentRequestsPerSite() * 2,
+		IdleConnTimeout:       120 * time.Second,
+		TLSHandshakeTimeout:   10 * time.Second,
+		ExpectContinueTimeout: 1 * time.Second,
+		DialContext:           proxyDialContext,
+	}
+
+	var stack HttpMessageHandler = HttpMessageHandlerFunc(func(req *http.Request) (*http.Response, error) {
+		return ts.RoundTrip(req)
+	})
+	for i := len(c.mids) - 1; i >= 0; i-- {
+		stack = c.mids[i](stack)
+	}
+
+	return roundTripperFunc(stack.Send)
+}
+
+func (c *Crawler) pipeline() PipelineHandler {
+	var stack PipelineHandler = PipelineHandlerFunc(func(item Item) {})
+	for i := len(c.pipes) - 1; i >= 0; i-- {
+		stack = c.pipes[i](stack)
+	}
+	return stack
+}
+
+type roundTripperFunc func(*http.Request) (*http.Response, error)
+
+func (f roundTripperFunc) RoundTrip(req *http.Request) (*http.Response, error) {
+	return f(req)
+}
+
+func (c *Crawler) pathMatch(path string) (h Handler, pattern string) {
+	var n = 0
+	for k, v := range c.m {
+		if strings.Index(k, path) == -1 {
+			continue
 		}
+		if h == nil || len(k) > n {
+			n = len(k)
+			h = v.h
+			pattern = v.pattern
+		}
+	}
+	return
+}
+
+func (c *Crawler) handler(u *url.URL) (h Handler, pattern string) {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+
+	host, _, _ := net.SplitHostPort(u.Host)
+	h, pattern = c.pathMatch(host)
+	if h == nil {
+		h, pattern = c.pathMatch("*")
+	}
+	if h == nil {
+		h, pattern = VoidHandler(), ""
+	}
+	return
+}
+
+func (c *Crawler) maxConcurrentRequestsPerSite() int {
+	if v := c.MaxConcurrentRequestsPerSite; v > 0 {
+		return v
+	}
+	return 1
+}
+
+func (c *Crawler) maxConcurrentRequests() int {
+	if v := c.MaxConcurrentRequests; v > 0 {
+		return v
+	}
+	return 16
+}
+
+func (c *Crawler) maxConcurrentItems() int {
+	if v := c.MaxConcurrentItems; v > 0 {
+		return v
+	}
+	return 32
+}
+
+func (c *Crawler) downloadDelay() time.Duration {
+	if v := c.DownloadDelay; v > 0 {
+		return v
+	}
+	return 250 * time.Millisecond // 0.25s
+}
+
+func (c *Crawler) requestTimeout() time.Duration {
+	if v := c.RequestTimeout; v > 0 {
+		return v
+	}
+	return 30 * time.Second
+}
+
+func (c *Crawler) init() {
+	c.client = &http.Client{
+		Transport:     c.transport(),
+		CheckRedirect: c.CheckRedirect,
+		Timeout:       c.requestTimeout(),
+	}
+
+	c.pipeHandler = c.pipeline()
+	c.readCh = make(chan *http.Request)
+	c.writeCh = make(chan Item)
+	go c.readLoop()
+	go c.writeLoop()
+}
+
+func (c *Crawler) scanRequestWork(workCh chan chan *http.Request, closeCh chan int) {
+	reqch := make(chan *http.Request)
+	for {
+		workCh <- reqch
+		select {
+		case req := <-reqch:
+			resc := make(chan responseAndError)
+			spider := c.getSpider(req.URL)
+
+			if req.Header.Get("User-Agent") == "" && c.UserAgent != "" {
+				req.Header.Set("User-Agent", c.UserAgent)
+			}
+
+			spider.reqch <- requestAndChan{req: req, ch: resc}
+			select {
+			case re := <-resc:
+				closeRequest(req)
+				if re.err != nil {
+					logrus.Warnf("antch: send HTTP request got error: %v", re.err)
+				} else {
+					go func(res *http.Response) {
+						defer closeResponse(res)
+						defer func() {
+							if r := recover(); r != nil {
+								logrus.Panicf("antch: Handler got panic error: %v", r)
+							}
+						}()
+						h, _ := c.Handler(res.Request.URL)
+						h.ServeSpider(c.writeCh, res)
+					}(re.res)
+				}
+			case <-closeCh:
+				closeRequest(req)
+				return
+			}
+		case <-closeCh:
+			return
+		}
+	}
+}
+
+// readLoop reads HTTP crawl request from queue and to execute.
+func (c *Crawler) readLoop() {
+	closeCh := make(chan int)
+	workCh := make(chan chan *http.Request, c.maxConcurrentRequests())
+
+	for i := 0; i < c.maxConcurrentRequests(); i++ {
+		go func() {
+			c.scanRequestWork(workCh, closeCh)
+		}()
 	}
 
 	for {
 		select {
-		case req := <-requestCh:
-			var (
-				f     = c.getFetcher(req.URL.Host, newFetcher)
-				resch = make(chan responseAndError)
-				reqch = requestAndChan{ctx: context.Background(), req: req, ch: resch}
-			)
+		case req := <-c.readCh:
+			reqch := <-workCh
+			reqch <- req
+		case <-c.Exit:
+			goto exit
+		}
+	}
+exit:
+	close(closeCh)
+}
 
-			select {
-			case f.queueCh <- reqch:
-				// Waiting an HTTP response.
-				select {
-				case re := <-resch:
-					if re.err != nil {
-						logrus.Error(re.err)
-					} else {
-						c.spider().ProcessResponse(re.ctx, re.res)
-						re.res.Body.Close()
+// writeLoop writes a received Item into the item pippeline.
+func (c *Crawler) writeLoop() {
+	closeCh := make(chan int)
+	workCh := make(chan Item, c.maxConcurrentItems())
+
+	for i := 0; i < c.maxConcurrentItems(); i++ {
+		go func() {
+			c.scanPipelineWork(workCh, closeCh)
+		}()
+	}
+	for {
+		select {
+		case item := <-c.writeCh:
+			workCh <- item
+		case <-c.Exit:
+			goto exit
+		}
+	}
+exit:
+	close(closeCh)
+}
+
+func (c *Crawler) scanPipelineWork(workCh chan Item, closeCh chan int) {
+	for {
+		select {
+		case v := <-workCh:
+			done := make(chan int)
+			go func() {
+				defer close(done)
+				defer func() {
+					if r := recover(); r != nil {
+						logrus.Panicf("antch: Handler got panic error: %v", r)
 					}
-				case <-closeCh:
-					return
-				}
-			case <-f.quitCh:
-				// fetcher has exit work.
+				}()
+				c.pipeHandler.ServePipeline(v)
+			}()
+			select {
+			case <-done:
 			case <-closeCh:
 				return
 			}
@@ -131,244 +383,119 @@ func (c *Crawler) queueScanWorker(requestCh chan *http.Request, closeCh chan int
 	}
 }
 
-func (c *Crawler) resizePool(requestCh chan *http.Request, closeCh chan int) {
-	for {
-		if c.poolSize == c.maxWorkers() {
-			break
-		} else if c.poolSize > c.maxWorkers() {
-			// contract
-			closeCh <- 1
-			c.poolSize--
-		} else {
-			// expand
-			c.waitGroup.Wrap(func() {
-				c.queueScanWorker(requestCh, closeCh)
-			})
-			c.poolSize++
+// removeIdleSpider makes spider as dead.
+func (c *Crawler) removeSpider(s *spider) {
+	c.spiderMu.Lock()
+	defer c.spiderMu.Unlock()
+	delete(c.spider, s.key)
+}
+
+// getSpider returns a spider for the given URL.
+func (c *Crawler) getSpider(url *url.URL) *spider {
+	c.spiderMu.Lock()
+	defer c.spiderMu.Unlock()
+
+	if c.spider == nil {
+		c.spider = make(map[string]*spider)
+	}
+
+	host, _, _ := net.SplitHostPort(url.Host)
+	key := fmt.Sprintf("%s%s", url.Scheme, host)
+	s, ok := c.spider[key]
+	if !ok {
+		s = &spider{
+			c:     c,
+			reqch: make(chan requestAndChan),
+			key:   key,
 		}
+		c.spider[key] = s
+		go s.crawlLoop()
 	}
-}
-
-func (c *Crawler) queueScanLoop(q Queue) {
-	requestCh := make(chan *http.Request, c.maxWorkers())
-	closeCh := make(chan int, c.maxWorkers())
-
-	refreshTicker := time.NewTicker(6 * time.Second)
-
-	c.resizePool(requestCh, closeCh)
-
-	for {
-		select {
-		case <-refreshTicker.C:
-			c.resizePool(requestCh, closeCh)
-		case <-c.exitCh:
-			goto exit
-		default:
-			urlStr, err := q.Dequeue()
-			switch {
-			case err == io.EOF:
-				// No URLs in the queue q.
-				select {
-				case <-time.After(200 * time.Millisecond):
-				}
-				continue
-			case err != nil:
-				// Got error.
-				logrus.Error(err)
-				continue
-			}
-			req, err := http.NewRequest("GET", urlStr, nil)
-			if err != nil {
-				continue
-			}
-			// Settings a User-Agent to identify by remote server.
-			req.Header.Set("User-Agent", "antch")
-			requestCh <- req
-		}
-	}
-
-exit:
-	close(closeCh)
-	refreshTicker.Stop()
-}
-
-// getFetcher returns a fetcher to access for the specified website.
-func (c *Crawler) getFetcher(host string, newf func() *fetcher) *fetcher {
-	c.fetcherMu.RLock()
-	f, ok := c.fetchers[host]
-	c.fetcherMu.RUnlock()
-	if ok {
-		return f
-	}
-
-	c.fetcherMu.Lock()
-	defer c.fetcherMu.Unlock()
-
-	if c.fetchers == nil {
-		c.fetchers = make(map[string]*fetcher)
-	}
-	f = newf()
-	c.fetchers[host] = f
-
-	go func() { f.fetchLoop() }()
-
-	return f
-}
-
-func (c *Crawler) removeFetcher(f *fetcher) {
-	c.fetcherMu.Lock()
-	defer c.fetcherMu.Unlock()
-
-	var host string
-	for k, v := range c.fetchers {
-		if v == f {
-			host = k
-			break
-		}
-	}
-	delete(c.fetchers, host)
-}
-
-func (c *Crawler) maxWorkers() int {
-	if v := c.MaxWorkers; v != 0 {
-		return v
-	}
-	return runtime.NumCPU() * 3
-}
-
-func (c *Crawler) maxFetchersPerHost() int {
-	if v := c.MaxFetchersPerHost; v != 0 {
-		return v
-	}
-	return DefaultMaxFetchersPerHost
+	return s
 }
 
 type requestAndChan struct {
 	req *http.Request
-	ctx context.Context
 	ch  chan responseAndError
 }
 
 type responseAndError struct {
 	res *http.Response
-	ctx context.Context
 	err error
 }
 
-// fetcher is a crawler worker to limit number of worker to fetch at one time
-// for the same host.
-type fetcher struct {
-	c       *Crawler
-	n       int                 // number of worker running
-	queueCh chan requestAndChan // URLS queue with in same host.
-	quitCh  chan struct{}       // worker exit channel.
+// spider is http spider for the single site.
+type spider struct {
+	c     *Crawler
+	reqch chan requestAndChan
+	key   string
 }
 
-func (f *fetcher) maxWorkers() int {
-	return f.c.maxFetchersPerHost()
-}
-
-// fetchLoop runs in a single goroutine to execute download for a receved crawl request
-// from its own URLs channel.
-func (f *fetcher) fetchLoop() {
-	workerPool := make(chan chan requestAndChan, f.maxWorkers())
-	closeCh := make(chan int, f.maxWorkers())
-
-	const idleTimeout = 10 * time.Minute
-	idleTimer := time.NewTimer(idleTimeout)
-	refreshTicker := time.NewTicker(8 * time.Second)
-
-	f.resizePool(workerPool, closeCh)
+func (s *spider) queueScanWorker(workCh chan chan requestAndChan, respCh chan int, closeCh chan struct{}) {
+	rc := make(chan requestAndChan)
 	for {
+		workCh <- rc
 		select {
-		case reqCh := <-f.queueCh:
+		case c := <-rc:
+			resp, err := s.c.client.Do(c.req)
 			select {
-			case workCh := <-workerPool:
-				select {
-				case workCh <- reqCh:
-					idleTimer.Reset(idleTimeout)
-				default:
-					// Workch has closed.
-					d := reqCh
-					go func() {
-						f.queueCh <- d
-					}()
-				}
-			case <-f.c.exitCh:
-				// Main server has exit.
-				goto exit
-			}
-		case <-refreshTicker.C:
-			f.resizePool(workerPool, closeCh)
-		case <-idleTimer.C:
-			// Worker has inactive.
-			f.c.removeFetcher(f)
-			goto exit
-		case <-f.c.exitCh:
-			// Main server has exit.
-			goto exit
-		}
-	}
-exit:
-	close(closeCh)
-	close(f.quitCh)
-	refreshTicker.Stop()
-}
-
-func (f *fetcher) resizePool(workerPool chan chan requestAndChan, closeCh chan int) {
-	for {
-		if f.n == f.maxWorkers() {
-			break
-		} else if f.n > f.maxWorkers() {
-			// Decrease a worker number
-			closeCh <- 1
-			f.n--
-		} else {
-			// Increase a worker number
-			go func() { f.fetchWorker(workerPool, closeCh) }()
-			f.n++
-		}
-	}
-}
-
-func (f *fetcher) fetchWorker(workerPool chan chan requestAndChan, closeCh chan int) {
-	workCh := make(chan requestAndChan)
-	for {
-		select {
-		case workerPool <- workCh:
-			select {
-			case rc := <-workCh:
-				resch := make(chan responseAndError)
-				ctx, cancel := context.WithCancel(rc.ctx)
-
-				go func() {
-					defer closeRequest(rc.req)
-					resp, err := f.c.downloader().ProcessRequest(ctx, rc.req)
-					resch <- responseAndError{res: resp, err: err, ctx: rc.ctx}
-				}()
-
-				select {
-				case re := <-resch:
-					rc.ch <- re
-				case <-closeCh:
-					cancel()
-					rc.ch <- responseAndError{err: errors.New("antch: request has canceled")}
-					return
-				}
+			case c.ch <- responseAndError{resp, err}:
+				respCh <- 1
 			case <-closeCh:
-				// exit a worker
 				return
 			}
 		case <-closeCh:
-			// exit a worker
 			return
 		}
 	}
 }
 
-// Close HTTP request object.
-func closeRequest(req *http.Request) {
-	if req.Body != nil {
-		req.Body.Close()
+func (s *spider) crawlLoop() {
+	const idleTimeout = 120 * time.Second
+
+	respCh := make(chan int)
+	closeCh := make(chan struct{})
+	idleTimer := time.NewTimer(idleTimeout)
+	workCh := make(chan chan requestAndChan, s.c.maxConcurrentRequestsPerSite())
+
+	for i := 0; i < s.c.maxConcurrentRequestsPerSite(); i++ {
+		go func() {
+			s.queueScanWorker(workCh, respCh, closeCh)
+		}()
+	}
+
+	for {
+		select {
+		case rc := <-s.reqch:
+			// Wait a moment time before start fetching.
+			if t := s.c.downloadDelay(); t > 0 {
+				<-time.After(t)
+			}
+			c := <-workCh
+			c <- rc
+		case <-respCh:
+			idleTimer.Reset(idleTimeout)
+		case <-idleTimer.C:
+			goto exit
+		case <-s.c.Exit:
+			goto exit
+		}
+	}
+
+exit:
+	s.c.removeSpider(s)
+	close(closeCh)
+	idleTimer.Stop()
+}
+
+func closeRequest(r *http.Request) {
+	if r != nil && r.Body != nil {
+		r.Body.Close()
+	}
+}
+
+func closeResponse(r *http.Response) {
+	if r != nil && r.Body != nil {
+		r.Body.Close()
 	}
 }
