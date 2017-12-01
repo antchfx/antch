@@ -17,7 +17,7 @@ func TestCookiesHandler(t *testing.T) {
 	}))
 	defer ts.Close()
 
-	handler := cookiesHandler(defaultMessageHandler())
+	handler := CookiesMiddleware()(defaultMessageHandler())
 	req, _ := http.NewRequest("GET", ts.URL, nil)
 
 	resp, err := handler.Send(req)

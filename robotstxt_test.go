@@ -33,7 +33,7 @@ func TestRobotstxtHandler(t *testing.T) {
 		{"/", "Twitterbot", false},
 	}
 
-	handler := robotstxtHandler(defaultMessageHandler())
+	handler := RobotstxtMiddleware()(defaultMessageHandler())
 	for _, test := range pathTests {
 		req, err := http.NewRequest("GET", ts.URL+test.path, nil)
 		if err != nil {

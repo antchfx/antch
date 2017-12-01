@@ -34,7 +34,7 @@ func TestCompressionHandlerWithDeflate(t *testing.T) {
 }
 
 func testCompressionHandler(t *testing.T, ts *httptest.Server, want []byte) {
-	handler := compressionHandler(defaultMessageHandler())
+	handler := CompressionMiddleware()(defaultMessageHandler())
 	req, _ := http.NewRequest("GET", ts.URL, nil)
 	resp, err := handler.Send(req)
 	if err != nil {
