@@ -103,7 +103,8 @@ func (c *Crawler) enqueue(req *http.Request, timeout time.Duration) error {
 }
 
 // Handle registers the Handler for the given pattern.
-// If pattern is "*" means matches all requests.
+// If pattern is "*" means will matches all requests if
+// no any pattern matches.
 func (c *Crawler) Handle(pattern string, handler Handler) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
@@ -120,9 +121,9 @@ func (c *Crawler) Handle(pattern string, handler Handler) {
 	c.m[pattern] = muxEntry{pattern: pattern, h: handler}
 }
 
-// Handler returns a Handler for the give URL.
-func (c *Crawler) Handler(u *url.URL) (h Handler, pattern string) {
-	return c.handler(u)
+// Handler returns a Handler for the give HTTP Response.
+func (c *Crawler) Handler(res *http.Response) (h Handler, pattern string) {
+	return c.handler(res.Request.Host, res.Request.URL.Path)
 }
 
 // UseMiddleware adds a Middleware to the crawler.
@@ -192,10 +193,18 @@ func (f roundTripperFunc) RoundTrip(req *http.Request) (*http.Response, error) {
 	return f(req)
 }
 
-func (c *Crawler) pathMatch(path string) (h Handler, pattern string) {
+func (c *Crawler) pathMatch(pattern, path string) bool {
+	n := len(pattern)
+	if pattern[n-1] == '/' {
+		pattern = pattern[:n-1]
+	}
+	return strings.Index(path, pattern) >= 0
+}
+
+func (c *Crawler) matchHandler(path string) (h Handler, pattern string) {
 	var n = 0
 	for k, v := range c.m {
-		if strings.Index(k, path) == -1 {
+		if !c.pathMatch(k, path) {
 			continue
 		}
 		if h == nil || len(k) > n {
@@ -207,14 +216,16 @@ func (c *Crawler) pathMatch(path string) (h Handler, pattern string) {
 	return
 }
 
-func (c *Crawler) handler(u *url.URL) (h Handler, pattern string) {
+func (c *Crawler) handler(host, path string) (h Handler, pattern string) {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 
-	host, _, _ := net.SplitHostPort(u.Host)
-	h, pattern = c.pathMatch(host)
+	h, pattern = c.matchHandler(host + path)
 	if h == nil {
-		h, pattern = c.pathMatch("*")
+		h, pattern = c.matchHandler(host)
+	}
+	if h == nil {
+		h, pattern = c.matchHandler("*")
 	}
 	if h == nil {
 		h, pattern = VoidHandler(), ""
@@ -298,7 +309,7 @@ func (c *Crawler) scanRequestWork(workCh chan chan *http.Request, closeCh chan i
 								logrus.Panicf("antch: Handler got panic error: %v", r)
 							}
 						}()
-						h, _ := c.Handler(res.Request.URL)
+						h, _ := c.Handler(res)
 						h.ServeSpider(c.writeCh, res)
 					}(re.res)
 				}
