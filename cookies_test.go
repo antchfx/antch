@@ -29,7 +29,8 @@ func TestCookiesHandler(t *testing.T) {
 	if len(resp.Cookies()) == 0 {
 		t.Fatal("no cookies data after 1st request")
 	}
-	if g, e := resp.Cookies()[0].String(), "Flavor=Chocolate Chip"; e != g {
+	cookie := resp.Cookies()[0]
+	if g, e := (cookie.Name + "=" + cookie.Value), "Flavor=Chocolate Chip"; e != g {
 		t.Errorf("expected %s; got %s after 1st request", e, g)
 	}
 
@@ -41,7 +42,8 @@ func TestCookiesHandler(t *testing.T) {
 	if len(resp.Cookies()) == 0 {
 		t.Fatal("no cookies data after 2nd request")
 	}
-	if g, e := resp.Cookies()[0].String(), "Flavor=Oatmeal Raisin"; e != g {
+	cookie = resp.Cookies()[0]
+	if g, e := (cookie.Name + "=" + cookie.Value), "Flavor=Oatmeal Raisin"; e != g {
 		t.Errorf("expected %s; got %s after 2nd request", e, g)
 	}
 }
