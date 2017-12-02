@@ -6,6 +6,7 @@ import (
 	"net/http/httptest"
 	"net/url"
 	"testing"
+	"time"
 )
 
 func TestCrawlerBasic(t *testing.T) {
@@ -60,9 +61,6 @@ func TestCrawlerSpiderMux(t *testing.T) {
 	}
 
 	var tc = NewCrawler()
-	tc.Handle("*", HandlerFunc(func(c chan<- Item, res *http.Response) {
-		c <- 0
-	}))
 	for _, e := range spiderMuxTests {
 		tc.Handle(e.pattern, HandlerFunc(func(c chan<- Item, res *http.Response) {
 			c <- res.StatusCode
@@ -86,5 +84,29 @@ func TestCrawlerSpiderMux(t *testing.T) {
 		if code := (<-c).(int); code != fake.code {
 			t.Errorf("%s expected %d; got %d", fake.host+fake.path, fake.code, code)
 		}
+	}
+}
+
+func TestSpiderIdleTimeout(t *testing.T) {
+	timeout := 10 * time.Millisecond
+	spider := &spider{
+		key:         "test",
+		c:           &Crawler{},
+		idleTimeout: timeout,
+	}
+	done := make(chan struct{})
+	var (
+		start time.Time
+		end   time.Time
+	)
+	go func() {
+		defer close(done)
+		start = time.Now()
+		spider.crawlLoop()
+		end = time.Now()
+	}()
+	<-done
+	if d := end.Sub(start); d < timeout {
+		t.Errorf("spider's timeout expected <= %s; but %s", timeout, t)
 	}
 }

@@ -24,20 +24,25 @@ type Crawler struct {
 
 	// MaxConcurrentRequests specifies the maximum number of concurrent
 	// requests that will be performed.
+	// Default is 16.
 	MaxConcurrentRequests int
 
 	// MaxConcurrentRequestsPerHost specifies the maximum number of
 	// concurrent requests that will be performed to any single domain.
+	// Default is 1.
 	MaxConcurrentRequestsPerSite int
 
-	// RequestTimeout specifies a time to wait before the request times out.
+	// RequestTimeout specifies a time to wait before the HTTP Request times out.
+	// Default is 30s.
 	RequestTimeout time.Duration
 
 	// DownloadDelay specifies delay time to wait before access same website.
+	// Default is 0.25s.
 	DownloadDelay time.Duration
 
 	// MaxConcurrentItems specifies the maximum number of concurrent items
 	// to process parallel in the pipeline.
+	// Default is 32.
 	MaxConcurrentItems int
 
 	// UserAgent specifies the user-agent for the remote server.
@@ -79,21 +84,32 @@ type muxEntry struct {
 // StartURLs starts crawling for the given URL list.
 func (c *Crawler) StartURLs(URLs []string) {
 	for _, URL := range URLs {
-		req, _ := http.NewRequest("GET", URL, nil)
-		c.Request(req)
+		c.EnqueueURL(URL)
 	}
 }
 
-// Request puts an HTTP request into the working queue to crawling.
-func (c *Crawler) Request(req *http.Request) error {
-	c.once.Do(c.init)
+// Crawl puts an HTTP request into the working queue to crawling.
+func (c *Crawler) Crawl(req *http.Request) error {
 	if req == nil {
 		return errors.New("req is nil")
 	}
 	return c.enqueue(req, 5*time.Second)
 }
 
+// EnqueueURL puts given URL into the backup URLs queue.
+func (c *Crawler) EnqueueURL(URL string) error {
+	if URL == "" {
+		return errors.New("URL is nil")
+	}
+	req, err := http.NewRequest("GET", URL, nil)
+	if err != nil {
+		return err
+	}
+	return c.Crawl(req)
+}
+
 func (c *Crawler) enqueue(req *http.Request, timeout time.Duration) error {
+	c.once.Do(c.init)
 	select {
 	case c.readCh <- req:
 	case <-time.After(timeout):
@@ -127,14 +143,14 @@ func (c *Crawler) Handler(res *http.Response) (h Handler, pattern string) {
 }
 
 // UseMiddleware adds a Middleware to the crawler.
-func (c *Crawler) UseMiddleware(m Middleware) *Crawler {
-	c.mids = append(c.mids, m)
+func (c *Crawler) UseMiddleware(m ...Middleware) *Crawler {
+	c.mids = append(c.mids, m...)
 	return c
 }
 
 // UsePipeline adds a Pipeline to the crawler.
-func (c *Crawler) UsePipeline(p Pipeline) *Crawler {
-	c.pipes = append(c.pipes, p)
+func (c *Crawler) UsePipeline(p ...Pipeline) *Crawler {
+	c.pipes = append(c.pipes, p...)
 	return c
 }
 
@@ -415,9 +431,10 @@ func (c *Crawler) getSpider(url *url.URL) *spider {
 	s, ok := c.spider[key]
 	if !ok {
 		s = &spider{
-			c:     c,
-			reqch: make(chan requestAndChan),
-			key:   key,
+			c:           c,
+			reqch:       make(chan requestAndChan),
+			key:         key,
+			idleTimeout: 120 * time.Second,
 		}
 		c.spider[key] = s
 		go s.crawlLoop()
@@ -437,9 +454,10 @@ type responseAndError struct {
 
 // spider is http spider for the single site.
 type spider struct {
-	c     *Crawler
-	reqch chan requestAndChan
-	key   string
+	c           *Crawler
+	reqch       chan requestAndChan
+	key         string
+	idleTimeout time.Duration
 }
 
 func (s *spider) queueScanWorker(workCh chan chan requestAndChan, respCh chan int, closeCh chan struct{}) {
@@ -462,11 +480,9 @@ func (s *spider) queueScanWorker(workCh chan chan requestAndChan, respCh chan in
 }
 
 func (s *spider) crawlLoop() {
-	const idleTimeout = 120 * time.Second
-
 	respCh := make(chan int)
 	closeCh := make(chan struct{})
-	idleTimer := time.NewTimer(idleTimeout)
+	idleTimer := time.NewTimer(s.idleTimeout)
 	workCh := make(chan chan requestAndChan, s.c.maxConcurrentRequestsPerSite())
 
 	for i := 0; i < s.c.maxConcurrentRequestsPerSite(); i++ {
@@ -485,7 +501,7 @@ func (s *spider) crawlLoop() {
 			c := <-workCh
 			c <- rc
 		case <-respCh:
-			idleTimer.Reset(idleTimeout)
+			idleTimer.Reset(s.idleTimeout)
 		case <-idleTimer.C:
 			goto exit
 		case <-s.c.Exit:
