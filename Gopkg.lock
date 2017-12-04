@@ -14,12 +14,6 @@
   revision = "20aae6a26ce1958f3b84fffd9bea265a8d19b87a"
 
 [[projects]]
-  name = "github.com/sirupsen/logrus"
-  packages = ["."]
-  revision = "f006c2ac4710855cf0f916dd6b77acf6b048dc6e"
-  version = "v1.0.3"
-
-[[projects]]
   branch = "master"
   name = "github.com/temoto/robotstxt"
   packages = ["."]
@@ -27,21 +21,9 @@
 
 [[projects]]
   branch = "master"
-  name = "golang.org/x/crypto"
-  packages = ["ssh/terminal"]
-  revision = "94eea52f7b742c7cbe0b03b22f0c4c8631ece122"
-
-[[projects]]
-  branch = "master"
   name = "golang.org/x/net"
   packages = ["html","html/atom","html/charset","idna","proxy","publicsuffix"]
   revision = "a8b9294777976932365dabb6640cf1468d95c70f"
-
-[[projects]]
-  branch = "master"
-  name = "golang.org/x/sys"
-  packages = ["unix","windows"]
-  revision = "8b4580aae2a0dd0c231a45d3ccb8434ff533b840"
 
 [[projects]]
   branch = "master"
@@ -52,6 +34,6 @@
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "7c091866d87fd471cf82fdc7957e88ad026c89424c1bdd98339714b7be4bd515"
+  inputs-digest = "e36c840bf93b94a3fe81fe397cc8ba82d63d1cb837e1a8faccc28c41ebea5ec0"
   solver-name = "gps-cdcl"
   solver-version = 1

@@ -3,14 +3,13 @@ package antch
 import (
 	"errors"
 	"fmt"
+	"log"
 	"net"
 	"net/http"
 	"net/url"
 	"strings"
 	"sync"
 	"time"
-
-	"github.com/sirupsen/logrus"
 )
 
 // Item is represents an item object.
@@ -47,6 +46,12 @@ type Crawler struct {
 
 	// UserAgent specifies the user-agent for the remote server.
 	UserAgent string
+
+	// ErrorLog specifies an optional logger for errors HTTP transports
+	// and unexpected behavior from handlers.
+	// If nil, logging goes to os.Stderr via the log package's
+	// standard logger.
+	ErrorLog *log.Logger
 
 	// Exit is an optional channel whose closure indicates that the Crawler
 	// instance should be stop work and exit.
@@ -126,10 +131,10 @@ func (c *Crawler) Handle(pattern string, handler Handler) {
 	defer c.mu.Unlock()
 
 	if pattern == "" {
-		panic("antch: invalid domain")
+		panic("crawler: invalid domain")
 	}
 	if handler == nil {
-		panic("antch: handler is nil")
+		panic("crawler: handler is nil")
 	}
 	if c.m == nil {
 		c.m = make(map[string]muxEntry)
@@ -173,6 +178,14 @@ func (c *Crawler) UseProxy(proxyURL *url.URL) *Crawler {
 // UseRobotstxt enables support robots.txt.
 func (c *Crawler) UseRobotstxt() *Crawler {
 	return c.UseMiddleware(RobotstxtMiddleware())
+}
+
+func (c *Crawler) logf(format string, args ...interface{}) {
+	if c.ErrorLog != nil {
+		c.ErrorLog.Printf(format, args...)
+	} else {
+		log.Printf(format, args...)
+	}
 }
 
 func (c *Crawler) transport() http.RoundTripper {
@@ -316,13 +329,13 @@ func (c *Crawler) scanRequestWork(workCh chan chan *http.Request, closeCh chan i
 			case re := <-resc:
 				closeRequest(req)
 				if re.err != nil {
-					logrus.Warnf("antch: send HTTP request got error: %v", re.err)
+					c.logf("crawler: send HTTP request got error: %v", re.err)
 				} else {
 					go func(res *http.Response) {
 						defer closeResponse(res)
 						defer func() {
 							if r := recover(); r != nil {
-								logrus.Panicf("antch: Handler got panic error: %v", r)
+								c.logf("crawler: Handler got panic error: %v", r)
 							}
 						}()
 						h, _ := c.Handler(res)
@@ -394,7 +407,7 @@ func (c *Crawler) scanPipelineWork(workCh chan Item, closeCh chan int) {
 				defer close(done)
 				defer func() {
 					if r := recover(); r != nil {
-						logrus.Panicf("antch: Handler got panic error: %v", r)
+						c.logf("crawler: Handler got panic error: %v", r)
 					}
 				}()
 				c.pipeHandler.ServePipeline(v)
