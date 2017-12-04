@@ -6,33 +6,31 @@ Antch
 [![Go Report Card](https://goreportcard.com/badge/github.com/antchfx/antch)](https://goreportcard.com/report/github.com/antchfx/antch)
 [![GoDoc](https://godoc.org/github.com/antchfx/antch?status.svg)](https://godoc.org/github.com/antchfx/antch)
 
-Antch, Its inspired by [Scrpay](https://scrapy.org/) project. If you're already familiar 
-with scrapy, you can quickly get started.
+**Antch**, its inspired by [Scrpay](https://scrapy.org/) project. If you're familiar with scrapy, 
+you can quickly get started.
 
-Antch is a fast high-level web crawling & scraping framework for Go, used 
+Antch is a fast, powerful and extensible web crawling & scraping framework for Go, used 
 to crawl websites and extract structured data from their pages.
 
-Features
+Get Started
 ====
 
-TODO
+Follow the Getting Started instructions to start your first spider.
 
-Requirements
+- [English](https://github.com/antchfx/antch/wiki/Getting-Started)
+- [简体中文](https://github.com/antchfx/antch/wiki/%E5%BF%AB%E9%80%9F%E5%85%A5%E9%97%A8)
+
+What's Features
 ====
 
-TODO
+- Its a polite, and high concurrent web crawler.
+- Powerful and customizable HTTP middleware.
+- Item data pipeline for the web spider.
+- Built-in supports proxy(HTTP, HTTPS, SOCKS5).
+- Built-in support XPath query for HTML/XML documents.
+- Easy to use and integration with your project.
 
-Tutorial
+Documentation
 ====
 
-TODO
-
-Middlewares
-====
-
-TODO
-
-Pipelines
-====
-
-TODO
+See [https://github.com/antchfx/antch/wiki](https://github.com/antchfx/antch/wiki)
