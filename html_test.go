@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/antchfx/xquery/html"
+	"github.com/antchfx/htmlquery"
 )
 
 func TestMediaTypeParse(t *testing.T) {

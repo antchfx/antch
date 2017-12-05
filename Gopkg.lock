@@ -3,15 +3,21 @@
 
 [[projects]]
   branch = "master"
-  name = "github.com/antchfx/xpath"
+  name = "github.com/antchfx/htmlquery"
   packages = ["."]
-  revision = "58d12fe685d684ed55aab3b988394652025e36dc"
+  revision = "9f7717ac9bac5f660391c57e3d496b3c7cf9741f"
 
 [[projects]]
   branch = "master"
-  name = "github.com/antchfx/xquery"
-  packages = ["html","xml"]
-  revision = "20aae6a26ce1958f3b84fffd9bea265a8d19b87a"
+  name = "github.com/antchfx/xmlquery"
+  packages = ["."]
+  revision = "f3845cf372319e5428e4c6704089452ddff8ef8b"
+
+[[projects]]
+  branch = "master"
+  name = "github.com/antchfx/xpath"
+  packages = ["."]
+  revision = "58d12fe685d684ed55aab3b988394652025e36dc"
 
 [[projects]]
   branch = "master"
@@ -29,11 +35,11 @@
   branch = "master"
   name = "golang.org/x/text"
   packages = ["collate","collate/build","encoding","encoding/charmap","encoding/htmlindex","encoding/internal","encoding/internal/identifier","encoding/japanese","encoding/korean","encoding/simplifiedchinese","encoding/traditionalchinese","encoding/unicode","internal/colltab","internal/gen","internal/tag","internal/triegen","internal/ucd","internal/utf8internal","language","runes","secure/bidirule","transform","unicode/bidi","unicode/cldr","unicode/norm","unicode/rangetable"]
-  revision = "75cc3cad82b5f47d3fb229ddda8c5167da14f294"
+  revision = "57961680700a5336d15015c8c50686ca5ba362a4"
 
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "e36c840bf93b94a3fe81fe397cc8ba82d63d1cb837e1a8faccc28c41ebea5ec0"
+  inputs-digest = "461011816aae508d21fbd62c9c593e09f973799a23fe4d2f194d6f6e3ce693b8"
   solver-name = "gps-cdcl"
   solver-version = 1

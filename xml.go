@@ -3,7 +3,7 @@ package antch
 import (
 	"net/http"
 
-	"github.com/antchfx/xquery/xml"
+	"github.com/antchfx/xmlquery"
 )
 
 // ParseXML parses an HTTP response as XML document.

@@ -7,7 +7,7 @@ import (
 	"mime"
 	"net/http"
 
-	"github.com/antchfx/xquery/html"
+	"github.com/antchfx/htmlquery"
 	"golang.org/x/net/html"
 	"golang.org/x/net/html/charset"
 	"golang.org/x/text/encoding"

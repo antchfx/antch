@@ -7,7 +7,7 @@ import (
 	"strings"
 
 	"github.com/antchfx/antch"
-	"github.com/antchfx/xquery/html"
+	"github.com/antchfx/htmlquery"
 )
 
 type item struct {
