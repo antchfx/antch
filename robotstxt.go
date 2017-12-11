@@ -1,6 +1,7 @@
 package antch
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"net/http"
@@ -17,13 +18,25 @@ type robotsEntry struct {
 	last time.Time
 }
 
-func (e *robotsEntry) update() {
+func (e *robotsEntry) update(proxyURL *url.URL) {
 	e.last = time.Now()
 	allAllowed := func() *robotstxt.RobotsData {
 		return &robotstxt.RobotsData{}
 	}
-
-	resp, err := http.Get(e.url)
+	ts := &http.Transport{
+		DialContext: proxyDialContext,
+	}
+	client := &http.Client{
+		Transport: ts,
+		CheckRedirect: func(req *http.Request, via []*http.Request) error {
+			return http.ErrUseLastResponse
+		},
+	}
+	req, _ := http.NewRequest("GET", e.url, nil)
+	if proxyURL != nil {
+		req = req.WithContext(context.WithValue(req.Context(), ProxyKey{}, proxyURL))
+	}
+	resp, err := client.Do(req)
 	if err != nil {
 		e.data = allAllowed()
 		return
@@ -43,7 +56,7 @@ func robotstxtHandler(next HttpMessageHandler) HttpMessageHandler {
 		m  = make(map[string]*robotsEntry)
 	)
 
-	get := func(URL string) *robotstxt.RobotsData {
+	get := func(URL string, proxyURL *url.URL) *robotstxt.RobotsData {
 		mu.RLock()
 		e := m[URL]
 		mu.RUnlock()
@@ -52,19 +65,23 @@ func robotstxtHandler(next HttpMessageHandler) HttpMessageHandler {
 			mu.Lock()
 			defer mu.Unlock()
 			e = &robotsEntry{url: URL}
-			e.update()
+			e.update(proxyURL)
 			m[URL] = e
 			return e.data
 		}
 
 		if (time.Now().Sub(e.last).Hours()) >= 24 {
-			go e.update()
+			go e.update(proxyURL)
 		}
 		return e.data
 	}
 
 	return HttpMessageHandlerFunc(func(req *http.Request) (*http.Response, error) {
-		r := get(robotstxtURL(req.URL))
+		var proxyURL *url.URL
+		if v := req.Context().Value(ProxyKey{}); v != nil {
+			proxyURL = v.(*url.URL)
+		}
+		r := get(robotstxtURL(req.URL), proxyURL)
 		ua := req.Header.Get("User-Agent")
 		if r.TestAgent(req.URL.Path, ua) {
 			return next.Send(req)

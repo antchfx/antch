@@ -3,6 +3,8 @@ package antch
 import (
 	"net/http"
 	"net/http/httptest"
+	"net/http/httputil"
+	"net/url"
 	"testing"
 )
 
@@ -51,4 +53,36 @@ func TestRobotstxtHandler(t *testing.T) {
 		}
 	}
 
+}
+
+func TestRobotstxtWithProxyHandler(t *testing.T) {
+	proxyServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		director := func(req *http.Request) {
+			req.URL.Host = r.Host
+			req.URL.Scheme = "http"
+		}
+		proxy := &httputil.ReverseProxy{Director: director}
+		proxy.ServeHTTP(w, r)
+	}))
+	defer proxyServer.Close()
+
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/robots.txt":
+			w.Header().Set("Content-Type", "text/plain")
+			w.Write([]byte(robotsText))
+		default:
+			w.WriteHeader(http.StatusOK)
+		}
+	}))
+	defer ts.Close()
+
+	proxyURL, _ := url.Parse(proxyServer.URL)
+	handler := ProxyMiddleware(http.ProxyURL(proxyURL))(RobotstxtMiddleware()(defaultMessageHandler()))
+
+	req, _ := http.NewRequest("GET", ts.URL, nil)
+	_, err := handler.Send(req)
+	if err != nil {
+		t.Errorf("request path /, err = %v; want nil", err)
+	}
 }
