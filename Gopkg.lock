@@ -27,19 +27,25 @@
 
 [[projects]]
   branch = "master"
+  name = "github.com/tylertreat/BoomFilters"
+  packages = ["."]
+  revision = "964ea140c9f5a751a35c2ff646f9b5fcf5982b4f"
+
+[[projects]]
+  branch = "master"
   name = "golang.org/x/net"
   packages = ["html","html/atom","html/charset","idna","proxy","publicsuffix"]
-  revision = "a8b9294777976932365dabb6640cf1468d95c70f"
+  revision = "d866cfc389cec985d6fda2859936a575a55a3ab6"
 
 [[projects]]
   branch = "master"
   name = "golang.org/x/text"
   packages = ["collate","collate/build","encoding","encoding/charmap","encoding/htmlindex","encoding/internal","encoding/internal/identifier","encoding/japanese","encoding/korean","encoding/simplifiedchinese","encoding/traditionalchinese","encoding/unicode","internal/colltab","internal/gen","internal/tag","internal/triegen","internal/ucd","internal/utf8internal","language","runes","secure/bidirule","transform","unicode/bidi","unicode/cldr","unicode/norm","unicode/rangetable"]
-  revision = "57961680700a5336d15015c8c50686ca5ba362a4"
+  revision = "3b24cac7bc3a458991ab409aa2a339ac9e0d60d6"
 
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "461011816aae508d21fbd62c9c593e09f973799a23fe4d2f194d6f6e3ce693b8"
+  inputs-digest = "f2c0d7fcd6c0b3300666d83d10a9196306cf79a89a56b3541cfff20cb577a1ff"
   solver-name = "gps-cdcl"
   solver-version = 1
