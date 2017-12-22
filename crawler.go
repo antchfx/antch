@@ -51,7 +51,7 @@ type Crawler struct {
 	// and unexpected behavior from handlers.
 	// If nil, logging goes to os.Stderr via the log package's
 	// standard logger.
-	ErrorLog *log.Logger
+	ErrorLog Logger
 
 	// Exit is an optional channel whose closure indicates that the Crawler
 	// instance should be stop work and exit.
@@ -182,7 +182,7 @@ func (c *Crawler) UseRobotstxt() *Crawler {
 
 func (c *Crawler) logf(format string, args ...interface{}) {
 	if c.ErrorLog != nil {
-		c.ErrorLog.Printf(format, args...)
+		c.ErrorLog.Output(2, fmt.Sprintf(format, args...))
 	} else {
 		log.Printf(format, args...)
 	}

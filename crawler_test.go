@@ -2,9 +2,11 @@ package antch
 
 import (
 	"io/ioutil"
+	"log"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"os"
 	"testing"
 	"time"
 )
@@ -108,5 +110,17 @@ func TestSpiderIdleTimeout(t *testing.T) {
 	<-done
 	if d := end.Sub(start); d < timeout {
 		t.Errorf("spider's timeout expected <= %s; but %s", timeout, t)
+	}
+}
+
+func TestCrawlerNilLogger(t *testing.T) {
+	loggers := []Logger{
+		log.New(os.Stdout, "", log.LstdFlags),
+		nilLogger{},
+	}
+	tc := &Crawler{}
+	for _, logger := range loggers {
+		tc.ErrorLog = logger
+		tc.logf("test logging")
 	}
 }
