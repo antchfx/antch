@@ -493,7 +493,7 @@ func (s *spider) queueScanWorker(workCh chan chan requestAndChan, respCh chan in
 }
 
 func (s *spider) crawlLoop() {
-	respCh := make(chan int)
+	respCh := make(chan int, s.c.maxConcurrentRequestsPerSite())
 	closeCh := make(chan struct{})
 	idleTimer := time.NewTimer(s.idleTimeout)
 	workCh := make(chan chan requestAndChan, s.c.maxConcurrentRequestsPerSite())
