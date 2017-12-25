@@ -473,7 +473,7 @@ type spider struct {
 	idleTimeout time.Duration
 }
 
-func (s *spider) queueScanWorker(workCh chan chan requestAndChan, respCh chan int, closeCh chan struct{}) {
+func (s *spider) queueScanWorker(workCh chan chan requestAndChan, closeCh chan struct{}) {
 	rc := make(chan requestAndChan)
 	for {
 		workCh <- rc
@@ -482,7 +482,6 @@ func (s *spider) queueScanWorker(workCh chan chan requestAndChan, respCh chan in
 			resp, err := s.c.client.Do(c.req)
 			select {
 			case c.ch <- responseAndError{resp, err}:
-				respCh <- 1
 			case <-closeCh:
 				return
 			}
@@ -493,14 +492,13 @@ func (s *spider) queueScanWorker(workCh chan chan requestAndChan, respCh chan in
 }
 
 func (s *spider) crawlLoop() {
-	respCh := make(chan int, s.c.maxConcurrentRequestsPerSite())
 	closeCh := make(chan struct{})
 	idleTimer := time.NewTimer(s.idleTimeout)
 	workCh := make(chan chan requestAndChan, s.c.maxConcurrentRequestsPerSite())
 
 	for i := 0; i < s.c.maxConcurrentRequestsPerSite(); i++ {
 		go func() {
-			s.queueScanWorker(workCh, respCh, closeCh)
+			s.queueScanWorker(workCh, closeCh)
 		}()
 	}
 
@@ -513,7 +511,6 @@ func (s *spider) crawlLoop() {
 			}
 			c := <-workCh
 			c <- rc
-		case <-respCh:
 			idleTimer.Reset(s.idleTimeout)
 		case <-idleTimer.C:
 			goto exit
