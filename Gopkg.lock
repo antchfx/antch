@@ -3,49 +3,112 @@
 
 [[projects]]
   branch = "master"
+  digest = "1:6aa777b79aabf960f0aae99cab32020752b811b745934d0689f7881ebae3efc5"
   name = "github.com/antchfx/htmlquery"
   packages = ["."]
-  revision = "9f7717ac9bac5f660391c57e3d496b3c7cf9741f"
+  pruneopts = ""
+  revision = "496ad84c8a0c36a9570ffc6e05b3b974891d39ff"
 
 [[projects]]
   branch = "master"
+  digest = "1:42615327e439f1e15b593dc4d55f44d3da81381cee6a08b71372bf6b964ef6cc"
   name = "github.com/antchfx/xmlquery"
   packages = ["."]
-  revision = "f3845cf372319e5428e4c6704089452ddff8ef8b"
+  pruneopts = ""
+  revision = "2805f22c26c4982685be4ae0f80bf3a5b34791e5"
 
 [[projects]]
   branch = "master"
+  digest = "1:b3b9332d7c49eb317c0e013df6cd9352aed82c5d9969f3ef4ee1c33f71918546"
   name = "github.com/antchfx/xpath"
   packages = ["."]
-  revision = "58d12fe685d684ed55aab3b988394652025e36dc"
+  pruneopts = ""
+  revision = "077bca4d2caaf391ee780136adae00f59153dcd2"
 
 [[projects]]
   branch = "master"
+  digest = "1:5fca8b8154a821c636cda5ae7d1ffa6582cedc125a7e076adb12a9354bafe875"
   name = "github.com/temoto/robotstxt"
   packages = ["."]
+  pruneopts = ""
   revision = "9e4646fa705336d5b2fa9dddfafbe0a1a965acd7"
 
 [[projects]]
   branch = "master"
+  digest = "1:a68b7b90a050f373570ae7e8afcc51b87b0ecf74fb8daa99f214c79f7e4ef642"
   name = "github.com/tylertreat/BoomFilters"
   packages = ["."]
-  revision = "964ea140c9f5a751a35c2ff646f9b5fcf5982b4f"
+  pruneopts = ""
+  revision = "8298e22dd59a0934529b1f78dd4e353df78277e3"
 
 [[projects]]
   branch = "master"
+  digest = "1:96d281cfaaa12ac602772da38ac85f00d59b1d3aa7bfe69d8ba334d6ee41e3e6"
   name = "golang.org/x/net"
-  packages = ["html","html/atom","html/charset","idna","proxy","publicsuffix"]
-  revision = "d866cfc389cec985d6fda2859936a575a55a3ab6"
+  packages = [
+    "html",
+    "html/atom",
+    "html/charset",
+    "idna",
+    "internal/socks",
+    "proxy",
+    "publicsuffix",
+  ]
+  pruneopts = ""
+  revision = "3673e40ba22529d22c3fd7c93e97b0ce50fa7bdd"
 
 [[projects]]
   branch = "master"
+  digest = "1:571116322b26326fefd352f9f43c4ee6aaacbb7a3c15b949baf5f6a7687ca910"
   name = "golang.org/x/text"
-  packages = ["collate","collate/build","encoding","encoding/charmap","encoding/htmlindex","encoding/internal","encoding/internal/identifier","encoding/japanese","encoding/korean","encoding/simplifiedchinese","encoding/traditionalchinese","encoding/unicode","internal/colltab","internal/gen","internal/tag","internal/triegen","internal/ucd","internal/utf8internal","language","runes","secure/bidirule","transform","unicode/bidi","unicode/cldr","unicode/norm","unicode/rangetable"]
-  revision = "3b24cac7bc3a458991ab409aa2a339ac9e0d60d6"
+  packages = [
+    "collate",
+    "collate/build",
+    "encoding",
+    "encoding/charmap",
+    "encoding/htmlindex",
+    "encoding/internal",
+    "encoding/internal/identifier",
+    "encoding/japanese",
+    "encoding/korean",
+    "encoding/simplifiedchinese",
+    "encoding/traditionalchinese",
+    "encoding/unicode",
+    "internal/colltab",
+    "internal/gen",
+    "internal/language",
+    "internal/language/compact",
+    "internal/tag",
+    "internal/triegen",
+    "internal/ucd",
+    "internal/utf8internal",
+    "language",
+    "runes",
+    "secure/bidirule",
+    "transform",
+    "unicode/bidi",
+    "unicode/cldr",
+    "unicode/norm",
+    "unicode/rangetable",
+  ]
+  pruneopts = ""
+  revision = "0605a8320aceb4207a5fb3521281e17ec2075476"
 
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "f2c0d7fcd6c0b3300666d83d10a9196306cf79a89a56b3541cfff20cb577a1ff"
+  input-imports = [
+    "github.com/antchfx/htmlquery",
+    "github.com/antchfx/xmlquery",
+    "github.com/temoto/robotstxt",
+    "github.com/tylertreat/BoomFilters",
+    "golang.org/x/net/html",
+    "golang.org/x/net/html/charset",
+    "golang.org/x/net/proxy",
+    "golang.org/x/net/publicsuffix",
+    "golang.org/x/text/encoding",
+    "golang.org/x/text/encoding/htmlindex",
+    "golang.org/x/text/transform",
+  ]
   solver-name = "gps-cdcl"
   solver-version = 1

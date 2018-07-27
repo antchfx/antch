@@ -20,10 +20,17 @@
 #  name = "github.com/x/y"
 #  version = "2.4.0"
 
+[[constraint]]
+  branch = "master"
+  name = "github.com/antchfx/htmlquery"
 
 [[constraint]]
   branch = "master"
-  name = "github.com/antchfx/xquery"
+  name = "github.com/antchfx/xmlquery"
+
+[[constraint]]
+  branch = "master"
+  name = "github.com/antchfx/xpath"
 
 [[constraint]]
   name = "github.com/sirupsen/logrus"
@@ -32,6 +39,10 @@
 [[constraint]]
   branch = "master"
   name = "github.com/temoto/robotstxt"
+
+[[constraint]]
+  branch = "master"
+  name = "github.com/tylertreat/BoomFilters"
 
 [[constraint]]
   branch = "master"
