@@ -109,7 +109,7 @@ func TestSpiderIdleTimeout(t *testing.T) {
 	}()
 	<-done
 	if d := end.Sub(start); d < timeout {
-		t.Errorf("spider's timeout expected <= %s; but %s", timeout, t)
+		t.Errorf("spider's timeout expected <= %d; but %d", timeout, d)
 	}
 }
 

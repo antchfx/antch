@@ -22,7 +22,7 @@ func TestMediaTypeParse(t *testing.T) {
 		t.Errorf("Charset = %s; want empty", m.Charset)
 	}
 	if g, e := m.Type, "text/html"; g != e {
-		t.Errorf("Type = %s; want e", g, e)
+		t.Errorf("Type = %s; want %s", g, e)
 	}
 }
 
