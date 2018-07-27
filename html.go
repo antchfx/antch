@@ -48,8 +48,7 @@ func ParseMediaType(v string) MediaType {
 	}
 }
 
-// ParseHTML parses an HTTP response as HTML document.
-func ParseHTML(resp *http.Response) (*html.Node, error) {
+func readResponseBody(resp *http.Response) (io.Reader, error) {
 	var (
 		ce encoding.Encoding
 		r  io.Reader = resp.Body
@@ -82,6 +81,15 @@ func ParseHTML(resp *http.Response) (*html.Node, error) {
 
 	if ce != encoding.Nop {
 		r = transform.NewReader(r, ce.NewDecoder())
+	}
+	return r, nil
+}
+
+// ParseHTML parses an HTTP response as HTML document.
+func ParseHTML(resp *http.Response) (*html.Node, error) {
+	r, err := readResponseBody(resp)
+	if err != nil {
+		return nil, err
 	}
 	return htmlquery.Parse(r)
 }
