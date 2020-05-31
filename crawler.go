@@ -509,8 +509,10 @@ func (s *spider) crawlLoop() {
 			if t := s.c.downloadDelay(); t > 0 {
 				<-time.After(t)
 			}
-			c := <-workCh
-			c <- rc
+			go func(rc requestAndChan) {
+				c := <-workCh
+				c <- rc
+			}(rc)
 			idleTimer.Reset(s.idleTimeout)
 		case <-idleTimer.C:
 			goto exit
